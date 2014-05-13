@@ -411,81 +411,105 @@ Work is only required to demonstrate that coordination is limited.
   \footnotesize
   \centering
   \begin{multicols}{2}
-    \begin{minipage}{0.49\textwidth}
+    \begin{minipage}{0.45\textwidth}
       \begin{algorithm}[H]
         \DontPrintSemicolon
-        \caption{Serial submodular maximization}
+        \caption{Serial Double Greedy Alg.}
         \label{alg:submax}
         %\Input{}
-        $A^0 = \emptyset$, $B^0 = V$\;
-        \For{$i = 1$ to $n$}{
-          $\Delta_{+}(i) = F(A^{i-1}\cup i) - F(A^{i-1})$\;
-          $\Delta_{-}(i) = F(B^{i-1}\backslash i) - F(B^{i-1})$\;
-          Draw $u_i\sim Unif(0,1)$\;
-          \If {$u_i<\frac{[\Delta_{+}(i)]_+}{[\Delta_{+}(i)]_+ + [\Delta_{-}(i)]_+}$}{
-            $A^i := A^{i-1} \cup i$;
-            $B^i := B^{i-1}$\;
+        $A \leftarrow \emptyset$, $B \leftarrow V$\;
+        \For{$i \in \set{1, \ldots n}$ }{
+          $\Delta_{A} \leftarrow \max \left( F(A \cup i) - F(A), 0 \right)$\;
+          $\Delta_{B} \leftarrow \max \left( F(B \backslash i) - F(B), 0\right)$\;
+          Draw $u_i \sim Unif(0,1)$\;
+          \lIf{$u_i < \frac{\Delta_A}{\Delta_A + \Delta_B}$ }{
+            $A \leftarrow A \cup i$
           }\lElse{
-            $A^i := A^{i-1}$;
-            $B^i := B^{i-1}\backslash i$
+            $B \leftarrow B \backslash i$
           }
         }
-        %\Output{$A_n$}
       \end{algorithm}
 
       \begin{algorithm}[H]
         \DontPrintSemicolon
-        \caption{Parallel bidirectional greedy}
+        \caption{Parallel Double Greedy Alg.}
         \label{alg:par}
-        \lFor{$i\in V$}{$\hat{A}(i) = \tilde{A}(i) = 0$, $\hat{B}(i) \tilde{B}(i) = 1$}
+        $A \leftarrow \emptyset$, $B \leftarrow V$ \;
         \ParForAll{$p \in \set{1, \ldots, P}$}{
-          \While{$\exists$ element to process}{
-            $i = $ next element to process\;
-            $(\hat{A}_i, \tilde{A}_i, \hat{B}_i, \tilde{B}_i)$ = getSnapshot($i$)\;
-            Draw $u_i\sim Unif(0,1)$\;
-            (res($i$), $\hat{A}_i$, $\tilde{A}_i$, $\hat{B}_i$, $\tilde{B}_i$) = $\Gamma_i(\hat{A}_i, \tilde{A}_i, \hat{B}_i, \tilde{B}_i, u_i)$\;
-            validate($i$, res($i$), $u_i$, $\hat{A}_i$, $\tilde{A}_i$, $\hat{B}_i$, $\tilde{B}_i$)\;
+          $i \leftarrow p$ \;
+          \While{$i < n$}{
+          $(\Gamma_i, \delta_i) \leftarrow T_i(A, B) $ \;
+          $(A,B) \leftarrow $ Validate($\delta_i$, $\Gamma_i$) \;
+          $i \leftarrow \text{AtomicInc}(i) $
           }
         }
       \end{algorithm}
 
+
+      \begin{algorithm}[H]
+        \DontPrintSemicolon
+        \caption{Validate the Transaction}
+        \label{alg:parvalidate}
+        \Input{The predicate $\Gamma$ on the state $A,B$}
+        \Input{The operation $\delta_i$ on element $i \in V$}
+
+        \If{$\Gamma(A,B)$ is false}{
+          $\Delta_A = F(A \cup i) - F(A)$\;
+          $\Delta_B = F(B \backslash i) - F(B)$\;
+          \lIf{$u_i < \frac{\Delta_A}{\Delta_A + \Delta_B}$ }{
+            $\delta_i \leftarrow +1$
+          }\lElse{
+            $\delta_i \leftarrow -1$
+          }
+        }
+        \lIf {$\delta_i = +1$}{
+          $A \leftarrow A \cup i$
+        }\lElse{
+          $B \leftarrow B \backslash i$
+        }
+      \end{algorithm}
     \end{minipage}
 
-    \begin{minipage}{0.49\textwidth}
+    \begin{minipage}{0.45\textwidth}
+
 
       \begin{algorithm}[H]
         \DontPrintSemicolon
-        \caption{Parallel getSnapshot($i$)}
-        \label{alg:parsnapshot}
-        $\tilde{A}(i) \leftarrow 1$; $\tilde{B}(i) \leftarrow 0$\;
-        \Return ($\hat{A}$, $\tilde{A}$, $\hat{B}$, $\tilde{B}$)
+        \caption{Coordinate Free Transaction $T_i$}
+        \label{alg:cftrans}
+        $\Delta_{A} \leftarrow \max \left( F(A \cup i) - F(A), 0 \right)$\;
+        $\Delta_{B} \leftarrow \max \left( F(B \backslash i) - F(B), 0\right)$\;
+        Draw $u_i \sim Unif(0,1)$\;
+        \lIf{$u_i < \frac{\Delta_A}{\Delta_A + \Delta_B}$ }{
+        (True, +1)
+        }\lElse{  (True, -1) }
       \end{algorithm}
 
       \begin{algorithm}[H]
         \DontPrintSemicolon
-        \caption{Parallel validate}
-        \label{alg:parvalidate}
-        \If{$\text{res}(i) = 0 \vee \hat{A}_i \not\subseteq A^{i-1} \not\subseteq \tilde{A}_i \vee \hat{B}_e \not\supseteq B^{i-1} \not\supseteq \tilde{B}_i$}{
-          $\Delta_+(i) = F(A^{i-1} \cup i) - F(A^{i-1})$\;
-          $\Delta_-(i) = F(B^{i-1} \backslash i) - F(B^{i-1})$\;
-          \lIf {$u_e < \frac{[\Delta_+(i)]_+}{[\Delta_+(i)]_+ + [\Delta_-(i)]_+}$}{
-            res$(i) \leftarrow 1$
-          }\lElse{
-            res$(i) \leftarrow -1$
-          }
-        }
-        \If {res$(i) = 1$}{
-          $A^i := A^{i-1} \cup i$;
-          $B^i := B^{i-1}$\;
-          $\hat{A}(i)   \leftarrow 1$;
-          $\tilde{B}(i) \leftarrow 1$\;
+        \caption{Concurrency Control $T_i$}
+        \label{alg:cctrans}
+        $\Delta_{A} \leftarrow \max \left( F(A \cup i) - F(A), 0 \right)$ \;
+        $\Delta_{B} \leftarrow \max \left( F(B \backslash i) - F(B), 0\right)$ \;
+        % $\underline{\Delta}_{A} \leftarrow \Delta_A, \bar{\Delta}_{A} \leftarrow \Delta_A,$ \;
+        % $\underline{\Delta}_{B} \leftarrow \Delta_B, \bar{\Delta}_{B} \leftarrow \Delta_B,$ \;
+       Draw $u_i \sim Unif(0,1)$\;
+       $j \leftarrow i+1$ \;
+       \If{$u_i < \frac{\Delta_A}{\Delta_A + \Delta_B}$ }{
+         \tcp{Construct the tight bound}
+         $\bar{A} := A \union \set{i+1, \ldots, j}$ \;
+         $\underline{B} := B \backslash \set{i+1, \ldots, j}$ \;
+         \While{$u_i < \frac{\Delta_{\bar{A}}}{\Delta_{\bar{A}} + \Delta_{\underline{B}}}$ } {
+         $j \leftarrow j + 1$ \;
+         }
+        ($\Gamma(A',B') = A' \subset \bar{A} \And \underline{B} \subset B'$, +1)
         }\Else{
-          $A^i := A^{i-1}$;
-          $B^i := B^{i-1}\backslash i$\;
-          $\tilde{A}(i) \leftarrow 0$;
-          $\hat{B}(i)   \leftarrow 0$\;
+        \joey{finish other condition}
+        (True, -1)
         }
       \end{algorithm}
+
+
 
     \end{minipage}
 
